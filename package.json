@@ -20,6 +20,7 @@
     "@types/leaflet": "^1.9.21",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.10.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "framer-motion": "^12.40.0",
@@ -36,7 +37,8 @@
     "react-dom": "19.2.4",
     "react-leaflet": "^5.0.0",
     "remotion": "^4.0.471",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
