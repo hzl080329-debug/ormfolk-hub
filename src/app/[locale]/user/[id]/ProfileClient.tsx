@@ -19,6 +19,16 @@ export default function ProfileClient({ profile, isFollowing: initialFollow }: {
   const t = useTranslations("profile");
   const locale = useLocale();
   const { data: session, update } = useSession();
+
+  if (!profile) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold text-text-primary mb-4">Profile unavailable</h1>
+        <p className="text-text-muted">Please try again later.</p>
+      </div>
+    );
+  }
+
   const isOwner = session?.user?.id === profile.id;
   const [editing, setEditing] = useState(false);
   const isCustomCountry = profile.country && !countries.includes(profile.country);
