@@ -43,7 +43,7 @@ export default function PostDetailClient({ post: initialPost, categories }: { po
   // Track real view (cookie-based dedup, 30 min cooldown)
   useEffect(() => {
     trackPostView(initialPost.id).then((result) => {
-      if (result?.counted) setViewCount(prev => prev + 1);
+      if (result?.counted) setViewCount((prev: number) => prev + 1);
     }).catch(() => {});
   }, [initialPost.id]);
 
