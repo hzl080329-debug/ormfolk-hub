@@ -118,7 +118,7 @@ export default function ContactClient() {
           </div>
           <div className="flex justify-center">
             <div className="w-40 h-40 rounded-xl bg-background border border-border overflow-hidden">
-              <img src="/uploads/1780328276049-fnnv19.JPG" alt="LINE QR" className="w-full h-full object-contain p-2" />
+              <img src="/images/line-qr-contact.jpg" alt="LINE QR" className="w-full h-full object-contain p-2" />
             </div>
           </div>
         </div>

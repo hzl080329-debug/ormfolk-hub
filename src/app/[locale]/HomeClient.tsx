@@ -14,9 +14,9 @@ import ActorCards from "@/components/features/ActorCards";
 
 // QR codes (locked — loaded from site settings)
 const LINE_QRS: Record<string, string> = {
-  line_qr_1: "/uploads/1780316012273-fj4c5.png",
-  line_qr_2: "/uploads/1780316016888-pzcorfa.jpg",
-  line_qr_3: "/uploads/1780316019090-axkwz8.jpg",
+  line_qr_1: "/images/line-qr-1.png",
+  line_qr_2: "/images/line-qr-2.jpg",
+  line_qr_3: "/images/line-qr-3.jpg",
 };
 function QRImage({ qrKey }: { qrKey: string; locale: string }) {
   const src = LINE_QRS[qrKey];

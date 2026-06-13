@@ -14,6 +14,12 @@ const MAX_SIZE = 500 * 1024 * 1024;
 
 export const maxDuration = 300;
 
+async function uploadToBlob(filename: string, buffer: Buffer, mimeType: string): Promise<string> {
+  const { put } = await import("@vercel/blob");
+  const blob = await put(filename, buffer, { access: "public", contentType: mimeType });
+  return blob.url;
+}
+
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -25,13 +31,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Expected multipart/form-data" }, { status: 400 });
   }
 
+  const useBlob = !!process.env.BLOB_READ_WRITE_TOKEN;
+
   try {
-    // Use busboy for streaming multipart — no body size limit
     const Busboy = (await import("busboy")).default;
     const nodeReadable = Readable.fromWeb(request.body as any);
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(uploadDir, { recursive: true });
+    if (!useBlob) {
+      const uploadDir = path.join(process.cwd(), "public", "uploads");
+      await mkdir(uploadDir, { recursive: true });
+    }
 
     const result: { url: string; filename: string }[] = [];
     const errors: { index: number; name: string; error: string }[] = [];
@@ -56,35 +65,61 @@ export async function POST(request: Request) {
         }
 
         const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
-        const filepath = path.join(uploadDir, filename);
-        const writeStream = createWriteStream(filepath);
-        let size = 0;
         pendingWrites++;
 
-        fileStream.on("data", (chunk: Buffer) => {
-          size += chunk.length;
-          if (size > MAX_SIZE) {
-            fileStream.destroy(new Error(`File too large: ${(size / 1024 / 1024).toFixed(0)}MB (max 500MB)`));
-          }
-        });
-
-        fileStream.on("error", (err: Error) => {
-          errors.push({ index: currentIdx, name: info.filename, error: err.message });
-        });
-
-        writeStream.on("finish", () => {
-          result.push({ url: `/uploads/${filename}`, filename });
-          pendingWrites--;
-          checkDone();
-        });
-
-        writeStream.on("error", (err: Error) => {
-          errors.push({ index: currentIdx, name: info.filename, error: err.message });
-          pendingWrites--;
-          checkDone();
-        });
-
-        fileStream.pipe(writeStream);
+        if (useBlob) {
+          // Vercel Blob: collect chunks into buffer
+          const chunks: Buffer[] = [];
+          let size = 0;
+          fileStream.on("data", (chunk: Buffer) => {
+            size += chunk.length;
+            if (size > MAX_SIZE) {
+              fileStream.destroy(new Error(`File too large: ${(size / 1024 / 1024).toFixed(0)}MB (max 500MB)`));
+            }
+            chunks.push(chunk);
+          });
+          fileStream.on("end", async () => {
+            try {
+              const url = await uploadToBlob(filename, Buffer.concat(chunks), info.mimeType);
+              result.push({ url, filename });
+            } catch (err: any) {
+              errors.push({ index: currentIdx, name: info.filename, error: err.message });
+            }
+            pendingWrites--;
+            checkDone();
+          });
+          fileStream.on("error", (err: Error) => {
+            errors.push({ index: currentIdx, name: info.filename, error: err.message });
+            pendingWrites--;
+            checkDone();
+          });
+        } else {
+          // Local filesystem
+          const uploadDir = path.join(process.cwd(), "public", "uploads");
+          const filepath = path.join(uploadDir, filename);
+          const writeStream = createWriteStream(filepath);
+          let size = 0;
+          fileStream.on("data", (chunk: Buffer) => {
+            size += chunk.length;
+            if (size > MAX_SIZE) {
+              fileStream.destroy(new Error(`File too large: ${(size / 1024 / 1024).toFixed(0)}MB (max 500MB)`));
+            }
+          });
+          fileStream.on("error", (err: Error) => {
+            errors.push({ index: currentIdx, name: info.filename, error: err.message });
+          });
+          writeStream.on("finish", () => {
+            result.push({ url: `/uploads/${filename}`, filename });
+            pendingWrites--;
+            checkDone();
+          });
+          writeStream.on("error", (err: Error) => {
+            errors.push({ index: currentIdx, name: info.filename, error: err.message });
+            pendingWrites--;
+            checkDone();
+          });
+          fileStream.pipe(writeStream);
+        }
       });
 
       bb.on("error", (err: Error) => {
@@ -93,9 +128,7 @@ export async function POST(request: Request) {
         resolve();
       });
 
-      bb.on("finish", () => {
-        checkDone();
-      });
+      bb.on("finish", () => { checkDone(); });
 
       nodeReadable.pipe(bb);
     });
