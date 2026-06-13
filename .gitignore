@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# uploads (not in git — use cloud storage)
+/public/uploads/
+
+# sqlite
+dev.db
+dev.db-journal
+
+# mcp-vision
+/mcp-vision/node_modules

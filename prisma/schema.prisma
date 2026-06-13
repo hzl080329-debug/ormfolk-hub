@@ -1,0 +1,614 @@
+// ORMFOLK Hub — Database Schema
+// SQLite for development, PostgreSQL for production
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Authentication (NextAuth.js v5)
+// ============================================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String?   @unique
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  bio           String?
+  city          String?
+  country       String?
+  joinedAt      DateTime  @default(now())
+  role          String    @default("user") // "user" | "verified" | "moderator" | "admin" | "superadmin" | "founder"
+  language      String    @default("en")
+  locationHidden Boolean  @default(false)
+  mutedUntil    DateTime?
+  banned        Boolean   @default(false)
+  warningCount  Int       @default(0)
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  title         String   @default("")
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret   String?
+  privacyLevel  String    @default("public") // "public" | "followers" | "private"
+  minorMode     Boolean   @default(false)
+  welcomeSent   Boolean   @default(false)
+  passwordChangedAt DateTime?
+  lastActiveAt  DateTime?
+
+  accounts      Account[]
+  sessions      Session[]
+  posts         Post[]
+  comments      Comment[]
+  creations     Creation[]
+  likes         Like[]
+  wallMessages  WallMessage[]
+  submissions   Submission[]
+  bookmarks     Bookmark[]
+  reports       Report[]
+  checkIns      CheckIn[]
+  achievements  Achievement[]
+  notifications Notification[]
+  reactions     Reaction[]
+  following     Follow[] @relation("Following")
+  followers     Follow[] @relation("Follower")
+  galleryItems   GalleryItem[]
+  announcements  Announcement[]
+  drafts         Draft[]
+  copyrightReports CopyrightReport[]
+  stickers        Sticker[]
+  feedbacks       Feedback[]
+  dislikes        Dislike[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ============================================================
+// App Data
+// ============================================================
+
+model TimelineEntry {
+  id          String @id @default(cuid())
+  year        Int
+  month       Int    @default(0)
+  day         Int    @default(1)
+  titleEn     String
+  titleZh     String
+  titleTh     String
+  descriptionEn String
+  descriptionZh String
+  descriptionTh String
+  type        String // "drama" | "event" | "award" | "social"
+  actor       String // "orm" | "folk" | "both"
+  imageUrl    String @default("")
+  createdAt   DateTime @default(now())
+}
+
+model ForumCategory {
+  id            String @id @default(cuid())
+  slug          String @unique
+  nameEn        String
+  nameZh        String
+  nameTh        String
+  descriptionEn String
+  descriptionZh String
+  descriptionTh String
+  sortOrder     Int    @default(0)
+  parentId      String?
+  posts         Post[]
+  parent        ForumCategory?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children      ForumCategory[] @relation("CategoryTree")
+  createdAt     DateTime @default(now())
+}
+
+model Post {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  titleZh     String?
+  titleTh     String?
+  contentZh   String?
+  contentTh   String?
+  originalLang String  @default("en")
+  categoryId  String
+  userId      String
+  viewCount   Int      @default(0)
+  likeCount   Int      @default(0)
+  commentCount Int     @default(0)
+  pinned      Boolean  @default(false)
+  essence     Boolean  @default(false)
+  dislikeCount Int     @default(0)
+  reviewStatus String  @default("approved") // "approved" | "pending" | "rejected"
+  eventId     String?
+  isSpoiler   Boolean  @default(false)
+  spoilerTitle String?
+  imageUrls   String   @default("[]") // JSON array of image URLs
+  editHistory String   @default("[]") // JSON array of {title,content,timestamp}
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category  ForumCategory @relation(fields: [categoryId], references: [id])
+  author    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event     Event?        @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  comments  Comment[]
+  likes     Like[]
+  bookmarks Bookmark[]
+  reports   Report[]
+  tags      PostTag[]
+  dislikes  Dislike[]
+}
+
+model Comment {
+  id            String   @id @default(cuid())
+  content       String
+  originalLang  String   @default("en")
+  translations  String   @default("{}")
+  postId        String?
+  creationId    String?
+  galleryItemId String?
+  userId        String
+  parentId      String?
+  likeCount     Int      @default(0)
+  dislikeCount  Int      @default(0)
+  isSpoiler     Boolean  @default(false)
+  imageUrl      String?
+  editHistory   String   @default("[]")
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  post        Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  creation    Creation?    @relation(fields: [creationId], references: [id], onDelete: Cascade)
+  galleryItem GalleryItem? @relation(fields: [galleryItemId], references: [id], onDelete: Cascade)
+  author      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent      Comment?     @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[]    @relation("CommentReplies")
+  reports     Report[]
+  likes       Like[]
+  dislikes    Dislike[]
+}
+
+model Tag {
+  id         String            @id @default(cuid())
+  name       String            @unique
+  posts      PostTag[]
+  creations  CreationTag[]
+  galleryItems GalleryTagLink[]
+
+  createdAt DateTime @default(now())
+}
+
+model PostTag {
+  postId String
+  tagId  String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+}
+
+model CreationTag {
+  creationId String
+  tagId      String
+
+  creation Creation @relation(fields: [creationId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([creationId, tagId])
+}
+
+model GalleryTagLink {
+  galleryItemId String
+  tagId         String
+
+  galleryItem GalleryItem @relation(fields: [galleryItemId], references: [id], onDelete: Cascade)
+  tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([galleryItemId, tagId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Follower", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+}
+
+model Reaction {
+  id         String   @id @default(cuid())
+  userId     String
+  postId     String?
+  commentId  String?
+  creationId String?
+  emoji      String   // "😂" "🔥" "💯" "👍" "😍" "😢"
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creation Creation? @relation(fields: [creationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId, emoji])
+  @@unique([userId, commentId, emoji])
+  @@unique([userId, creationId, emoji])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String   // YYYY-MM-DD
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model Achievement {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // "first_post" | "ten_posts" | "hundred_likes" | "week_streak" | "level5" | "level10"
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, type])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // "like" | "comment" | "reply" | "achievement" | "levelup"
+  message   String
+  link      String   @default("")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id            String   @id @default(cuid())
+  reporterId    String
+  postId        String?
+  commentId     String?
+  galleryItemId String?
+  stickerId     String?
+  reason        String
+  status        String   @default("pending") // "pending" | "reviewed" | "resolved"
+  createdAt     DateTime @default(now())
+
+  reporter    User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  post        Post?        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment     Comment?     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  galleryItem GalleryItem? @relation(fields: [galleryItemId], references: [id], onDelete: Cascade)
+  sticker     Sticker?     @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+}
+
+model Creation {
+  id           String   @id @default(cuid())
+  title        String
+  titleZh      String?
+  titleTh      String?
+  description  String
+  descriptionZh String?
+  descriptionTh String?
+  originalLang String   @default("en")
+  type         String   // "art" | "writing" | "edits" | "crafts"
+  imageUrl     String   @default("")
+  userId       String
+  likeCount    Int      @default(0)
+  commentCount Int      @default(0)
+  imageUrls    String   @default("[]")
+  isSpoiler    Boolean  @default(false)
+  editHistory  String   @default("[]")
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  author    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  likes     Like[]
+  tags      CreationTag[]
+  reactions Reaction[]
+}
+
+model Like {
+  id         String   @id @default(cuid())
+  userId     String
+  postId     String?
+  creationId String?
+  commentId  String?
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post     Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  creation Creation? @relation(fields: [creationId], references: [id], onDelete: Cascade)
+  comment  Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, creationId])
+  @@unique([userId, commentId])
+}
+
+model Dislike {
+  id         String   @id @default(cuid())
+  userId     String
+  postId     String?
+  commentId  String?
+  createdAt  DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+}
+
+model Event {
+  id            String @id @default(cuid())
+  titleEn       String
+  titleZh       String
+  titleTh       String
+  descriptionEn String
+  descriptionZh String
+  descriptionTh String
+  date          String // ISO date string
+  location      String
+  type          String // "online" | "offline"
+  imageUrl      String @default("")
+  createdAt     DateTime @default(now())
+  posts         Post[]
+}
+
+model WallMessage {
+  id           String   @id @default(cuid())
+  content      String
+  originalLang String   @default("en")
+  translations String   @default("{}")
+  type         String   // "story" | "blessing"
+  userId       String?
+  username     String   @default("Anonymous")
+  createdAt    DateTime @default(now())
+
+  author User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Submission {
+  id            String   @id @default(cuid())
+  type          String   // "timeline" | "work"
+  title         String
+  description   String
+  submittedBy   String
+  status        String   @default("pending") // "pending" | "approved" | "rejected"
+  reviewedBy    String?
+  createdAt     DateTime @default(now())
+  reviewedAt    DateTime?
+
+  user User @relation(fields: [submittedBy], references: [id], onDelete: Cascade)
+}
+
+model GalleryItem {
+  id           String   @id @default(cuid())
+  url          String
+  caption      String?
+  tag          String   @default("both") // actor tag: "orm" | "folk" | "both"
+  category     String   @default("photo") // "photo" | "video" | "gif"
+  videoUrl     String?
+  featured     Boolean  @default(false)
+  reviewStatus String   @default("approved") // "approved" | "pending" | "rejected"
+  userId       String
+  createdAt    DateTime @default(now())
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  galleryComments Comment[]
+  galleryTags     GalleryTagLink[]
+  reports         Report[]
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  titleZh   String?
+  titleTh   String?
+  contentZh String?
+  contentTh String?
+  originalLang String @default("en")
+  category  String   @default("announcement") // "announcement" | "event" | "birthday" | "update"
+  userId    String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SiteSetting {
+  key       String @id
+  value     String @default("")
+  updatedAt DateTime @updatedAt
+}
+
+model BannedWord {
+  id        String   @id @default(cuid())
+  word      String
+  lang      String   @default("all") // "en" | "zh" | "th" | "all"
+  category  String   @default("instant_block") // "instant_block" | "review" | "harassment"
+  createdAt DateTime @default(now())
+}
+
+model AdminLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String   // "ban_user" | "unban_user" | "mute_user" | "approve_post" | "reject_post" | "add_banned_word" | "remove_banned_word"
+  targetId  String?
+  detail    String?
+  createdAt DateTime @default(now())
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  type      String   // "register" | "reset_password"
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Draft {
+  id          String   @id @default(cuid())
+  title       String   @default("")
+  content     String   @default("")
+  categoryId  String?
+  eventId     String?
+  tags        String   @default("")
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CopyrightReport {
+  id            String   @id @default(cuid())
+  reporterId    String
+  contentType   String   // "post" | "comment" | "creation" | "gallery"
+  contentId     String
+  originalWork  String
+  description   String
+  status        String   @default("pending") // "pending" | "reviewed" | "resolved" | "dismissed"
+  createdAt     DateTime @default(now())
+  reviewedAt    DateTime?
+
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+}
+
+model WelcomeMessage {
+  id         String   @id @default(cuid())
+  contentEn  String
+  contentZh  String   @default("")
+  contentZht String   @default("")
+  contentYue String   @default("")
+  contentTh  String   @default("")
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Sticker {
+  id           String   @id @default(cuid())
+  userId       String
+  url          String
+  filename     String
+  privacyMode  String   @default("private") // "private" | "public"
+  reviewStatus String   @default("approved") // "approved" | "pending" | "rejected"
+  category     String   @default("general")
+  createdAt    DateTime @default(now())
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports Report[]
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String   // "bug" | "feature" | "content" | "translation" | "collaboration" | "general"
+  subject   String
+  message   String
+  contact   String   @default("")
+  status    String   @default("pending") // "pending" | "read" | "replied" | "resolved"
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Drama {
+  id            String   @id @default(cuid())
+  title         String
+  titleZh       String?
+  titleTh       String?
+  description   String   @default("")
+  descriptionZh String?
+  descriptionTh String?
+  coverImage    String   @default("")
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  episodes DramaEpisode[]
+}
+
+model DramaEpisode {
+  id          String   @id @default(cuid())
+  dramaId     String
+  episodeNum  Int
+  title       String
+  titleZh     String?
+  titleTh     String?
+  description String   @default("")
+  videoUrl    String
+  duration    String   @default("")
+  language    String   @default("")
+  createdAt   DateTime @default(now())
+
+  drama Drama @relation(fields: [dramaId], references: [id], onDelete: Cascade)
+}
